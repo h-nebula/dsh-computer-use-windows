@@ -1,5 +1,7 @@
 # DSH Computer Use (Windows)
 
+English | [简体中文](README.zh-CN.md)
+
 Native **Windows desktop control** for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness)
 text-only agents — screenshot the screen, locate UI elements with vision, then
 move / click / drag / scroll / type on the real desktop. No external

@@ -26,11 +26,12 @@ import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { fileURLToPath } from 'node:url'
 
 export const name = '@dsh-external/dsh-computer-use-windows'
 export const inject = ['tools']
 
-const PS1 = join(new URL('.', import.meta.url).pathname.slice(1), '..', 'scripts', 'computer-use.ps1')
+const PS1 = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'scripts', 'computer-use.ps1')
 
 function renderText(_args: unknown, value: unknown): ContentBlock[] {
   return [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }]
@@ -128,7 +129,7 @@ export function buildTools(): ToolDefinition[] {
         const ws = sessionWorkspace(exec)
         const outName = typeof args.output === 'string' && args.output.trim() !== ''
           ? args.output.trim()
-          : `computer-shot-${Date.now()}.png`
+          : `computer-shot-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`
         const outFile = join(ws, outName)
         const region = typeof args.region === 'string' ? args.region : ''
         let rArgs: string[] = []
@@ -216,12 +217,18 @@ export function buildTools(): ToolDefinition[] {
     ),
     tool(
       'computer_type',
-      'Type literal text into the focused field via SendKeys. Use {ENTER}, {TAB}, {BACKSPACE} for keys, ^c/^v/^a for shortcuts.',
-      { text: { type: 'string', required: true, description: 'Text or SendKeys sequence to type.' } },
+      'Type literal text into the focused field. Short plain text (<200 chars) goes through SendKeys; longer or special-character-heavy text is pasted through the clipboard (^v) automatically. SendKeys control sequences like {ENTER}/{TAB}/^c are honored when the text looks like a key sequence.',
+      { text: { type: 'string', required: true, description: 'Text to type, or a SendKeys sequence for key chords.' } },
       async (args) => {
-        const res = await runPs(['-Action', 'type', '-Text', String(args.text)], 15000)
+        const text = String(args.text)
+        // Heuristic: text that looks like a pure SendKeys key sequence goes
+        // through SendKeys; anything longer or with newlines/unicode-heavy
+        // content is pasted via clipboard for reliability and speed.
+        const looksLikeKeys = /^([{}^%+()~]|{[A-Z0-9]+}|[A-Za-z0-9]){1,64}$/.test(text) && text.length <= 64
+        const action = looksLikeKeys ? 'type' : 'paste'
+        const res = await runPs(['-Action', action, '-Text', text], 20000)
         if (!res.ok) return psOut(res)
-        return { ok: true, chars: String(args.text).length }
+        return { ok: true, chars: text.length, via: action }
       },
     ),
     tool(
