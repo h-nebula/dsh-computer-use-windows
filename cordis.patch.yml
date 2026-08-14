@@ -1,0 +1,4 @@
+# dsh-computer-use-windows bundle patch: mounts the plugin into a profile layer stack.
+- insert:
+    - id: computer-use-windows
+      name: '@dsh-external/dsh-computer-use-windows'
